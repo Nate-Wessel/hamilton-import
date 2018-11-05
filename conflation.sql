@@ -135,35 +135,83 @@ UPDATE buildings SET
 	"addr:street" = a."addr:street"
 FROM a WHERE buildings.gid = a.gid;
 
+-- get a count of outbuildings so we know how many addresses are intentionally unassigned
+SELECT 
+	COUNT(*)
+FROM buildings AS b JOIN parcels AS p ON
+	ST_Intersects(b.loc_geom,p.loc_geom) AND 
+	ST_Area(ST_Intersection(b.loc_geom,p.loc_geom)) > 0.9*ST_Area(b.loc_geom)
+WHERE 
+	p.building_count IN (2,3)
+	AND NOT p.repeating 
+	AND NOT b.main; -- is NOT main building
 
-
-
-
-
-
-/*
-
-
--- get address information into the buildings table for all buildings
-UPDATE buildings SET "addr:housenumber" = NULL;
+-- try to assign multiple addresses from multiple parcels to single buildings
 WITH addresses AS (
 	SELECT 
 		b.gid,
-		array_to_string( ARRAY_AGG(DISTINCT addrno), ';') AS housenumber
+		array_to_string( ARRAY_AGG(DISTINCT addrno), ';') AS housenumber,
+		array_to_string( ARRAY_AGG(DISTINCT "addr:street"), ';') AS street
 	FROM buildings AS b JOIN parcels AS p ON 
 		ST_Intersects(b.loc_geom,p.loc_geom) AND
 		ST_Area(ST_Intersection(b.loc_geom,p.loc_geom)) > 0.9*ST_Area(b.loc_geom)
+	WHERE 
+		p.building_count = 1 AND 
+		p.repeating AND
+		b."addr:housenumber" IS NULL
 	GROUP BY b.gid
 )
-UPDATE buildings AS b SET "addr:housenumber" = housenumber
+UPDATE buildings AS b SET 
+	"addr:housenumber" = housenumber,
+	"addr:street" = street
+FROM addresses AS a
+WHERE a.gid = b.gid;
+
+-- try to identify addresses for buildings across multiple parcels
+WITH addresses AS (
+	SELECT 
+		b.gid,
+		array_to_string( ARRAY_AGG(DISTINCT addrno), ';') AS addrno,
+		array_to_string( ARRAY_AGG(DISTINCT p."addr:street"), ';') AS street,
+		COUNT(*)
+	FROM buildings AS b
+	JOIN parcels AS p ON
+		ST_Intersects(b.loc_geom,p.loc_geom) AND
+		ST_Area(ST_Intersection(b.loc_geom,p.loc_geom)) < 0.9*ST_Area(b.loc_geom)
+	WHERE 
+		b."addr:housenumber" IS NULL AND
+		NOT p.repeating AND
+		p.addrno IS NOT NULL AND
+		b.sqft > 1000
+	GROUP BY b.gid
+)
+UPDATE buildings AS b SET 
+	"addr:housenumber" = addrno,
+	"addr:street" = street
 FROM addresses AS a
 WHERE 
+	count = 1 AND -- only simple cases!
 	a.gid = b.gid;
 
-
 -- identify intersecting/conflated buildings
+UPDATE buildings AS b SET conflated = FALSE;
 UPDATE buildings AS b SET conflated = TRUE 
 FROM ham_polygon AS osm
 	WHERE ST_Intersects(b.geom,osm.way)
 	AND osm.building IS NOT NULL and osm.building != 'no';
-*/
+
+
+
+-- dump the relavant fields only into another table for exporting
+SELECT 
+	"addr:housenumber",
+	"addr:street",
+	est_h_feet,
+	storyabove,
+	storybelow,
+	cwwuse,
+	geom
+INTO conflated_buildings
+--INTO import_buildings
+FROM buildings 
+WHERE conflated
