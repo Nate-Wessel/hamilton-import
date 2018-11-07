@@ -200,18 +200,86 @@ FROM ham_polygon AS osm
 	WHERE ST_Intersects(b.geom,osm.way)
 	AND osm.building IS NOT NULL and osm.building != 'no';
 
+-- dump simplified polygon geometries and OSM relavant fields into another table for exporting
+-- this code is based on https://trac.osgeo.org/postgis/wiki/UsersWikiSimplifyPreserveTopology
+-- it does take a very long time to run on this dataset...
 
-
--- dump the relavant fields only into another table for exporting
+-- first do conflated buildings
+with poly as (
+	SELECT
+		gid,
+		"addr:housenumber",
+		"addr:street",
+		est_h_feet,
+		storyabove,
+		storybelow,
+		cwwuse,
+		(st_dump(loc_geom)).* 
+        FROM buildings
+        WHERE conflated
+) 
 SELECT 
-	"addr:housenumber",
-	"addr:street",
-	est_h_feet,
-	storyabove,
-	storybelow,
-	cwwuse,
-	geom
-INTO conflated_buildings
---INTO import_buildings
-FROM buildings 
-WHERE conflated
+	poly.gid,
+	poly."addr:housenumber",
+	poly."addr:street",
+	poly.est_h_feet,
+	poly.storyabove,
+	poly.storybelow,
+	poly.cwwuse,
+	ST_Transform(baz.geom,4326)
+INTO simplified_conflated_buildings
+FROM ( 
+        SELECT (ST_Dump(ST_Polygonize(distinct geom))).geom as geom
+        FROM (
+		-- simplify geometries to a 0.2m tolerance to avoid repeated points
+                SELECT (ST_Dump(st_simplifyPreserveTopology(ST_Linemerge(st_union(geom)), 0.2))).geom as geom
+                FROM (
+                        SELECT ST_ExteriorRing((ST_DumpRings(geom)).geom) as geom
+                        FROM poly
+                ) AS foo
+        ) AS bar
+) AS baz, poly
+WHERE 
+	ST_Intersects(poly.geom, baz.geom)
+	AND ST_Area(st_intersection(poly.geom, baz.geom))/ST_Area(baz.geom) > 0.9;
+ALTER TABLE simplified_conflated_buildings ADD CONSTRAINT temp1_pkey PRIMARY KEY (gid);
+
+-- next do non-conflated buldings separately
+with poly as (
+	SELECT
+		gid,
+		"addr:housenumber",
+		"addr:street",
+		est_h_feet,
+		storyabove,
+		storybelow,
+		cwwuse,
+		(st_dump(loc_geom)).* 
+        FROM buildings
+        WHERE NOT conflated -- note: NOT
+) 
+SELECT 
+	poly.gid,
+	poly."addr:housenumber",
+	poly."addr:street",
+	poly.est_h_feet,
+	poly.storyabove,
+	poly.storybelow,
+	poly.cwwuse,
+	ST_Transform(baz.geom,4326)
+INTO simplified_buildings
+FROM ( 
+        SELECT (ST_Dump(ST_Polygonize(distinct geom))).geom as geom
+        FROM (
+		-- simplify geometries to a 0.2m tolerance to avoid repeated points
+                SELECT (ST_Dump(st_simplifyPreserveTopology(ST_Linemerge(st_union(geom)), 0.2))).geom as geom
+                FROM (
+                        SELECT ST_ExteriorRing((ST_DumpRings(geom)).geom) as geom
+                        FROM poly
+                ) AS foo
+        ) AS bar
+) AS baz, poly
+WHERE 
+	ST_Intersects(poly.geom, baz.geom)
+	AND ST_Area(st_intersection(poly.geom, baz.geom))/ST_Area(baz.geom) > 0.9;
+ALTER TABLE simplified_buildings ADD CONSTRAINT temp1_pkey PRIMARY KEY (gid);
