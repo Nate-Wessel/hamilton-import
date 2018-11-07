@@ -9,3 +9,19 @@ The original CAGIS data as provided in `/original_data` (recompressed for size) 
 `shp2pgsql -s 3735:4326 -g geom -I buildings.shp | psql -d cagis`
 
 ...reprojecting them into `epsg:4326`.
+
+Download fresh OSM data and pull it into PostGIS as well using e.g. ` osm2pgsql -d osm -c --prefix ham --slim --extra-attributes --hstore --latlong ham-cou.osm`.
+
+We then run the `conflation.sql` PostGIS script which 
+
+* checks for intersections between the building dataset and buildings in OSM
+* derives addresses from the parcel dataset where possible
+* exports the relavant attributes to separate tables with very slightly simplified geometries
+
+More detail on the process is provided on the OSM wiki page and in code comments. 
+
+We now have two PostGIS tables, one for buildings that need to be conflated manually with buildings in OSM, and one for buildings that can be imported more neatly. 
+
+...
+
+More to come on turning these into a format appropriate for the tasking manager. 
