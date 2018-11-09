@@ -226,7 +226,7 @@ SELECT
 	poly.storyabove,
 	poly.storybelow,
 	poly.cwwuse,
-	ST_Transform(baz.geom,4326)
+	ST_Transform(baz.geom,4326) AS geom
 INTO simplified_conflated_buildings
 FROM ( 
         SELECT (ST_Dump(ST_Polygonize(distinct geom))).geom as geom
@@ -266,7 +266,7 @@ SELECT
 	poly.storyabove,
 	poly.storybelow,
 	poly.cwwuse,
-	ST_Transform(baz.geom,4326)
+	ST_Transform(baz.geom,4326) AS geom
 INTO simplified_buildings
 FROM ( 
         SELECT (ST_Dump(ST_Polygonize(distinct geom))).geom as geom
