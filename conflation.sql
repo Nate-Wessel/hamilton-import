@@ -282,4 +282,3 @@ FROM (
 WHERE 
 	ST_Intersects(poly.geom, baz.geom)
 	AND ST_Area(st_intersection(poly.geom, baz.geom))/ST_Area(baz.geom) > 0.9;
-ALTER TABLE simplified_buildings ADD CONSTRAINT temp1_pkey PRIMARY KEY (gid);
