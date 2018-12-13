@@ -17,12 +17,8 @@ def filterTags(tags):
 			newtags[key] = value
 		elif key == 'addr:street' and value:
 			newtags[key] = value
-		elif key == 'est_h_feet' and value and value != '0':
-			newtags['height'] = value+"'"
 		elif key == 'storyabove' and value and value != '0':
 			newtags['building:levels'] = value
-		elif key == 'storybelow' and value and value != '0':
-			newtags['building:levels:underground'] = value
 		elif key == 'cwwuse':
 			if value and value in cwwuse_map:
 				newtags['building'] = cwwuse_map[value]
