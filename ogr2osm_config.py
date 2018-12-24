@@ -13,10 +13,10 @@ def filterTags(tags):
 		return
 	newtags = {}
 	for (key, value) in tags.items():
-		if key == 'addr:housenumber' and value:
-			newtags[key] = value
-		elif key == 'addr:street' and value:
-			newtags[key] = value
+		if key == 'addr_house' and value:
+			newtags['addr:housenumber'] = value
+		elif key == 'addr_stree' and value:
+			newtags['addr:street'] = value
 		elif key == 'storyabove' and value and value != '0':
 			newtags['building:levels'] = value
 		elif key == 'cwwuse':
